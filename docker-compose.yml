@@ -1,0 +1,53 @@
+version: '3'
+services:
+  # 自定义名称的 MySQL 服务
+  mysql_dyumb:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root@3303
+      MYSQL_DATABASE: mysql_dyumb
+    ports:
+      - "3303:3306"  # 修改宿主机映射端口
+    volumes:
+      - mysql_dyumb:/var/lib/mysql
+
+  # 自定义名称的 Redis 服务
+  redis_dyumb:
+    image: redis:6.2
+    restart: always
+    ports:
+      - "6377:6379"  # 修改宿主机映射端口
+    volumes:
+      - redis_dyumb:/data
+
+  # 自定义名称的 Spring Boot 应用服务
+  spring_app_dyumb:
+    build: .
+    restart: always
+    depends_on:
+      - mysql_dyumb
+      - redis_dyumb
+    ports:
+      - "8071:8071"  # 修改宿主机映射端口
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql_dyumb:3306/dyumb
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root@3303
+      SPRING_REDIS_HOST: redis_dyumb
+      SPRING_REDIS_PORT: 6379  # 容器内端口保持不变
+
+  # 自定义名称的 Nginx 服务
+  nginx_dyumb:
+    image: nginx:1.21
+    restart: always
+    ports:
+      - "82:80"  # 修改宿主机映射端口
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - spring_app_dyumb
+
+volumes:
+  mysql_dyumb:
+  redis_dyumb:

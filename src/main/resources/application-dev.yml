@@ -1,0 +1,9 @@
+logging:
+  level:
+    root: info
+    org:
+      springframework: debug  # 显示Spring框架相关日志
+      hibernate: debug        # 显示Hibernate相关日志
+      jdbc: debug             # 显示JDBC相关日志
+      org.hibernate.SQL: debug  # 显示SQL语句
+      org.hibernate.type.descriptor.sql: trace # 显示SQL语句中绑定的具体参数值
