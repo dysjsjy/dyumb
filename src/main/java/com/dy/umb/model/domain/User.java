@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.Objects;
 
 /**
  * 用户
@@ -86,10 +87,28 @@ public class User implements Serializable {
     private Integer userRole;
 
     /**
-     * 星球编号
+     * 编号
      */
     private String planetCode;
 
     @TableField(exist = false)
     private static final long serialVersionUID = 1L;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        User user = (User) o;
+        return Objects.equals(id, user.id) &&
+                Objects.equals(username, user.username) &&
+                Objects.equals(userAccount, user.userAccount) &&
+                Objects.equals(avatarUrl, user.avatarUrl) &&
+                Objects.equals(gender, user.gender) &&
+                Objects.equals(phone, user.phone) &&
+                Objects.equals(email, user.email) &&
+                Objects.equals(planetCode, user.planetCode) &&
+                Objects.equals(userRole, user.userRole) &&
+                Objects.equals(userStatus, user.userStatus) &&
+                Objects.equals(tags, user.tags);
+    }
 }

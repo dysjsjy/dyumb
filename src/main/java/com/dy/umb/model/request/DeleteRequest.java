@@ -1,4 +1,4 @@
-package com.dy.umb.common;
+package com.dy.umb.model.request;
 
 import lombok.Data;
 

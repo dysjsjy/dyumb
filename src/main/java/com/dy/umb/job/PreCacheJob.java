@@ -33,22 +33,27 @@ public class PreCacheJob {
     // 重点用户
     private List<Long> mainUserList = Arrays.asList(1L);
 
+    // todo mainUserList问题
+    // mainUserList其实可以设置成前一天活跃的用户，这样每天只需要执行活跃用户推荐缓存
+
     // 每天执行，预热推荐用户
     @Scheduled(cron = "0 31 0 * * *")
     public void doCacheRecommendUser() {
+        List<User> userList = userService.list(new QueryWrapper<User>().eq("userStatus", 0)).stream().map(user -> userService.getSafetyUser(user)).toList();
         RLock lock = redissonClient.getLock("dy:precachejob:docache:lock");
         try {
             // 只有一个线程能获取到锁
             if (lock.tryLock(0, -1, TimeUnit.MILLISECONDS)) {
                 System.out.println("getLock: " + Thread.currentThread().getId());
-                for (Long userId : mainUserList) {
-                    QueryWrapper<User> queryWrapper = new QueryWrapper<>();
-                    Page<User> userPage = userService.page(new Page<>(1, 20), queryWrapper);
-                    String redisKey = String.format("dy:user:recommend:%s", userId);
+                for (User user : userList) {
+                    List<User> matchUsers = userService.matchUsers(10, user);
+                    Page<User> userPage = new Page<>(1, matchUsers.size());
+                    userPage.setRecords(matchUsers);
+                    String redisKey = String.format("dy:user:recommend:%s", user.getId());
                     ValueOperations<String, Object> valueOperations = redisTemplate.opsForValue();
                     // 写缓存
                     try {
-                        valueOperations.set(redisKey, userPage, 30000, TimeUnit.MILLISECONDS);
+                        valueOperations.set(redisKey, userPage, 30, TimeUnit.MILLISECONDS);
                     } catch (Exception e) {
                         log.error("redis set key error", e);
                     }

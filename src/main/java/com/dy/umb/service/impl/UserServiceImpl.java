@@ -53,7 +53,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户密码过短");
         }
         if (planetCode.length() > 5) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "星球编号过长");
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "编号过长");
         }
         // 账户不能包含特殊字符
         String validPattern = "[`~!@#$%^&*()+=|{}':;',\\\\[\\\\].<>/?~！@#￥%……&*（）——+|{}【】‘；：”“’。，、？]";
@@ -72,7 +72,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         if (count > 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号重复");
         }
-        // 星球编号不能重复
+        // 编号不能重复
         queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("planetCode", planetCode);
         count = userMapper.selectCount(queryWrapper);
@@ -92,8 +92,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         }
         return user.getId();
     }
-
-    // [加入编程导航](https://www.code-nav.cn/) 入门捷径+交流答疑+项目实战+求职指导，帮你自学编程不走弯路
 
     @Override
     public User userLogin(String userAccount, String userPassword, HttpServletRequest request) {
@@ -207,11 +205,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         if (userId <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        // todo 补充校验，如果用户没有传任何要更新的值，就直接报错，不用执行 update 语句
         // 如果是管理员，允许更新任意用户
         // 如果不是管理员，只允许更新当前（自己的）信息
         if (!isAdmin(loginUser) && userId != loginUser.getId()) {
             throw new BusinessException(ErrorCode.NO_AUTH);
+        }
+        if (user.equals(loginUser)) {
+            throw new BusinessException(ErrorCode.NULL_ERROR, "没有更新任何数据。");
         }
         User oldUser = userMapper.selectById(userId);
         if (oldUser == null) {
@@ -304,6 +304,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             finalUserList.add(userIdUserListMap.get(userId).get(0));
         }
         return finalUserList;
+    }
+
+    @Override
+    public boolean isUserValid(User user) {
+        // 这里可以添加更多的验证逻辑，例如检查用户是否被禁用等
+        return user.getUserStatus() == 0; // 0 正常
     }
 
     /**

@@ -3,7 +3,7 @@ package com.dy.umb.controller;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.dy.umb.common.BaseResponse;
-import com.dy.umb.common.DeleteRequest;
+import com.dy.umb.model.request.DeleteRequest;
 import com.dy.umb.common.ErrorCode;
 import com.dy.umb.common.ResultUtils;
 import com.dy.umb.exception.BusinessException;
