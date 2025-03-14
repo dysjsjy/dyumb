@@ -1,6 +1,6 @@
 package com.dy.umb.model.dto;
 
-import com.dy.umb.common.PageRequest;
+import com.dy.umb.model.request.PageRequest;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 

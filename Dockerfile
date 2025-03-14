@@ -11,4 +11,5 @@ COPY ./dyUMB-1.0-SNAPSHOT.jar ./
 EXPOSE 8071
 
 # 运行 Spring Boot 应用
-CMD ["java", "-jar", "dyUMB-1.0-SNAPSHOT.jar"]
+#CMD ["java", "-jar", "dyUMB-1.0-SNAPSHOT.jar"]
+# 有bug运行不了

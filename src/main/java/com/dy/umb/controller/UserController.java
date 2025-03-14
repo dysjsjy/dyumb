@@ -14,7 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.util.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
@@ -27,7 +27,7 @@ import static com.dy.umb.constant.UserConstant.USER_LOGIN_STATE;
 
 @RestController
 @RequestMapping("/user")
-@CrossOrigin(origins = {"http://localhost:3000"})
+//@CrossOrigin(origins = {"http://localhost:3000"})
 @Slf4j
 public class UserController {
 
@@ -85,6 +85,10 @@ public class UserController {
         }
         long userId = currentUser.getId();
         // TODO 校验用户是否合法
+        // 可以添加更多的验证逻辑，例如检查用户是否被禁用等
+        if (!userService.isUserValid(currentUser)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "用户状态异常");
+        }
         User user = userService.getById(userId);
         User safetyUser = userService.getSafetyUser(user);
         return ResultUtils.success(safetyUser);
@@ -175,5 +179,4 @@ public class UserController {
         User user = userService.getLoginUser(request);
         return ResultUtils.success(userService.matchUsers(num, user));
     }
-
 }
