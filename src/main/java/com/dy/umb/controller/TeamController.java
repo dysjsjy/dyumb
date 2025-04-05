@@ -2,6 +2,10 @@ package com.dy.umb.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.dy.umb.aop.CacheDeleteHelper;
+import com.dy.umb.aop.CacheDoubleDelete;
+import com.dy.umb.aop.CacheGetList;
+import com.dy.umb.aop.CachePage;
 import com.dy.umb.common.BaseResponse;
 import com.dy.umb.model.request.DeleteRequest;
 import com.dy.umb.common.ErrorCode;
@@ -21,19 +25,17 @@ import com.dy.umb.service.UserService;
 import com.dy.umb.service.UserTeamService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.time.Duration;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/team")
-//@CrossOrigin(origins = {"http://localhost:5173"})
 @Slf4j
 public class TeamController {
 
@@ -46,6 +48,12 @@ public class TeamController {
     @Resource
     private UserTeamService userTeamService;
 
+    @Resource
+    private RedisTemplate<String, Object> redisTemplate;
+
+    @Resource
+    private CacheDeleteHelper cacheDeleteHelper;
+
     @PostMapping("/add")
     public BaseResponse<Long> addTeam(@RequestBody TeamAddRequest teamAddRequest, HttpServletRequest request) {
         if (teamAddRequest == null) {
@@ -55,19 +63,28 @@ public class TeamController {
         Team team = new Team();
         BeanUtils.copyProperties(teamAddRequest, team);
         long teamId = teamService.addTeam(team, loginUser);
+
+        // 插入成功后再延迟双删
+        String key = "team:info:" + teamId;
+        cacheDeleteHelper.doubleDelete(key);
+
         return ResultUtils.success(teamId);
     }
 
+
+    @CacheDoubleDelete(keys = {"team:info:{#teamUpdateRequest.id}"})
     @PostMapping("/update")
     public BaseResponse<Boolean> updateTeam(@RequestBody TeamUpdateRequest teamUpdateRequest, HttpServletRequest request) {
         if (teamUpdateRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
+
         User loginUser = userService.getLoginUser(request);
         boolean result = teamService.updateTeam(teamUpdateRequest, loginUser);
         if (!result) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新失败");
         }
+
         return ResultUtils.success(true);
     }
 
@@ -76,48 +93,107 @@ public class TeamController {
         if (id <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        Team team = teamService.getById(id);
+
+        // redis缓存
+        String key = "team:info:" + id;
+        Team team = (Team) redisTemplate.opsForValue().get(key);
+
+        if (team == null) {
+            team = teamService.getById(id);
+            if (team != null) {
+                redisTemplate.opsForValue().set(key, team, Duration.ofMinutes(10));
+            }
+        }
+
         if (team == null) {
             throw new BusinessException(ErrorCode.NULL_ERROR);
         }
+
         return ResultUtils.success(team);
     }
 
+    // 管理员获取所有队伍列表
     @GetMapping("/list")
     public BaseResponse<List<TeamUserVO>> listTeams(TeamQuery teamQuery, HttpServletRequest request) {
         if (teamQuery == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
+
         boolean isAdmin = userService.isAdmin(request);
-        // 1、查询队伍列表
+        // 1. 查询队伍列表
         List<TeamUserVO> teamList = teamService.listTeams(teamQuery, isAdmin);
         final List<Long> teamIdList = teamList.stream().map(TeamUserVO::getId).collect(Collectors.toList());
-        // 2、判断当前用户是否已加入队伍
-        QueryWrapper<UserTeam> userTeamQueryWrapper = new QueryWrapper<>();
+
         try {
             User loginUser = userService.getLoginUser(request);
-            userTeamQueryWrapper.eq("userId", loginUser.getId());
-            userTeamQueryWrapper.in("teamId", teamIdList);
-            List<UserTeam> userTeamList = userTeamService.list(userTeamQueryWrapper);
-            // 已加入的队伍 id 集合
-            Set<Long> hasJoinTeamIdSet = userTeamList.stream().map(UserTeam::getTeamId).collect(Collectors.toSet());
+            Long userId = loginUser.getId();
+            String cacheKey = "user:team:joined:" + userId;
+
+            // 2. 从Redis中获取值
+            Object value = redisTemplate.opsForValue().get(cacheKey);
+            Set<Long> hasJoinTeamIdSet = null;
+            // 检查获取的值是否为Set类型
+            if (value instanceof Set) {
+                Set<?> set = (Set<?>) value;
+                // 检查Set中的元素是否为Long类型
+                boolean allLong = true;
+                for (Object element : set) {
+                    if (!(element instanceof Long)) {
+                        allLong = false;
+                        break;
+                    }
+                }
+                if (allLong) {
+                    // 安全地转换为Set<Long>
+                    hasJoinTeamIdSet = (Set<Long>) set;
+                }
+            }
+
+            if (hasJoinTeamIdSet == null) {
+                // 缓存未命中，查数据库
+                QueryWrapper<UserTeam> userTeamQueryWrapper = new QueryWrapper<>();
+                userTeamQueryWrapper.eq("userId", userId);
+                List<UserTeam> userTeamList = userTeamService.list(userTeamQueryWrapper);
+                hasJoinTeamIdSet = userTeamList.stream()
+                        .map(UserTeam::getTeamId)
+                        .collect(Collectors.toSet());
+
+                // 设置缓存，过期时间加点随机避免雪崩
+                redisTemplate.opsForValue().set(
+                        cacheKey,
+                        hasJoinTeamIdSet,
+                        Duration.ofMinutes(10).plusSeconds(new Random().nextInt(300))
+                );
+            }
+
+            // 3. 标记是否加入
+            Set<Long> finalHasJoinTeamIdSet = hasJoinTeamIdSet;
             teamList.forEach(team -> {
-                boolean hasJoin = hasJoinTeamIdSet.contains(team.getId());
+                boolean hasJoin = finalHasJoinTeamIdSet.contains(team.getId());
                 team.setHasJoin(hasJoin);
             });
+
         } catch (Exception e) {
+            // 兜底处理，不影响主流程
         }
-        // 3、查询已加入队伍的人数
+
+        // 4. 查询已加入人数（这段可选缓存，暂不优化）
         QueryWrapper<UserTeam> userTeamJoinQueryWrapper = new QueryWrapper<>();
         userTeamJoinQueryWrapper.in("teamId", teamIdList);
         List<UserTeam> userTeamList = userTeamService.list(userTeamJoinQueryWrapper);
-        // 队伍 id => 加入这个队伍的用户列表
-        Map<Long, List<UserTeam>> teamIdUserTeamList = userTeamList.stream().collect(Collectors.groupingBy(UserTeam::getTeamId));
-        teamList.forEach(team -> team.setHasJoinNum(teamIdUserTeamList.getOrDefault(team.getId(), new ArrayList<>()).size()));
+        Map<Long, List<UserTeam>> teamIdUserTeamList = userTeamList.stream()
+                .collect(Collectors.groupingBy(UserTeam::getTeamId));
+
+        teamList.forEach(team -> {
+            int joinNum = teamIdUserTeamList.getOrDefault(team.getId(), new ArrayList<>()).size();
+            team.setHasJoinNum(joinNum);
+        });
+
         return ResultUtils.success(teamList);
     }
 
-    // todo 查询分页
+
+    @CachePage(keyPrefix = "team:list:page")
     @GetMapping("/list/page")
     public BaseResponse<Page<Team>> listTeamsByPage(TeamQuery teamQuery) {
         if (teamQuery == null) {
@@ -131,6 +207,8 @@ public class TeamController {
         return ResultUtils.success(resultPage);
     }
 
+
+    @CacheDoubleDelete(keys = {"team:info:{#teamJoinRequest.teamId}"})
     @PostMapping("/join")
     public BaseResponse<Boolean> joinTeam(@RequestBody TeamJoinRequest teamJoinRequest, HttpServletRequest request) {
         if (teamJoinRequest == null) {
@@ -141,6 +219,7 @@ public class TeamController {
         return ResultUtils.success(result);
     }
 
+    @CacheDoubleDelete(keys = {"team:info:{#teamQuitRequest.teamId}"})
     @PostMapping("/quit")
     public BaseResponse<Boolean> quitTeam(@RequestBody TeamQuitRequest teamQuitRequest, HttpServletRequest request) {
         if (teamQuitRequest == null) {
@@ -151,6 +230,7 @@ public class TeamController {
         return ResultUtils.success(result);
     }
 
+    @CacheDoubleDelete(keys = {"team:info:{#deleteRequest.id}"})
     @PostMapping("/delete")
     public BaseResponse<Boolean> deleteTeam(@RequestBody DeleteRequest deleteRequest, HttpServletRequest request) {
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
@@ -173,6 +253,7 @@ public class TeamController {
      * @param request
      * @return
      */
+    @CacheGetList(keyPrefix = "team:list:my:create:")
     @GetMapping("/list/my/create")
     public BaseResponse<List<TeamUserVO>> listMyCreateTeams(TeamQuery teamQuery, HttpServletRequest request) {
         if (teamQuery == null) {
@@ -192,6 +273,7 @@ public class TeamController {
      * @param request
      * @return
      */
+    @CacheGetList(keyPrefix = "team:list:my:join:")
     @GetMapping("/list/my/join")
     public BaseResponse<List<TeamUserVO>> listMyJoinTeams(TeamQuery teamQuery, HttpServletRequest request) {
         if (teamQuery == null) {
@@ -201,14 +283,7 @@ public class TeamController {
         QueryWrapper<UserTeam> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("userId", loginUser.getId());
         List<UserTeam> userTeamList = userTeamService.list(queryWrapper);
-        // 取出不重复的队伍 id
-        // teamId userId
-        // 1, 2
-        // 1, 3
-        // 2, 3
-        // result
-        // 1 => 2, 3
-        // 2 => 3
+
         Map<Long, List<UserTeam>> listMap = userTeamList.stream()
                 .collect(Collectors.groupingBy(UserTeam::getTeamId));
         List<Long> idList = new ArrayList<>(listMap.keySet());
@@ -217,30 +292,3 @@ public class TeamController {
         return ResultUtils.success(teamList);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
