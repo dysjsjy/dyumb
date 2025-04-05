@@ -46,6 +46,9 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
     @Resource
     private RedissonClient redissonClient;
 
+    @Resource
+    private TeamMapper teamMapper;
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public long addTeam(Team team, User loginUser) {
@@ -87,19 +90,30 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
                 throw new BusinessException(ErrorCode.PARAMS_ERROR, "密码设置不正确");
             }
         }
+
         // 6. 超时时间 > 当前时间
         Date expireTime = team.getExpireTime();
-        if (new Date().after(expireTime)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR, "超时时间 > 当前时间");
+        if (expireTime != null && new Date().after(expireTime)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "超时时间不能小于当前时间");
         }
         // 7. 校验用户最多创建 5 个队伍
-        // todo 有 bug，可能同时创建 100 个队伍
-        QueryWrapper<Team> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("userId", userId);
-        long hasTeamNum = this.count(queryWrapper);
+        // 使用数据库行级锁来保证并发安全
+        // 在 MySQL 中可以使用 FOR UPDATE 语句
+        // 这里使用 MyBatis-Plus 的自定义 SQL 来实现
+        long hasTeamNum = teamMapper.countUserTeamsForUpdate(userId);
         if (hasTeamNum >= 5) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户最多创建 5 个队伍");
         }
+
+//        // 7. 校验用户最多创建 5 个队伍
+//        // 有 bug，可能同时创建 100 个队伍
+//        QueryWrapper<Team> queryWrapper = new QueryWrapper<>();
+//        queryWrapper.eq("userId", userId);
+//        long hasTeamNum = this.count(queryWrapper);
+//        if (hasTeamNum >= 5) {
+//            throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户最多创建 5 个队伍");
+//        }
+
         // 8. 插入队伍信息到队伍表
         team.setId(null);
         team.setUserId(userId);

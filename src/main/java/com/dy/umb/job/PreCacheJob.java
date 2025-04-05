@@ -34,7 +34,6 @@ public class PreCacheJob {
     // 重点用户
     private List<Long> mainUserList = Arrays.asList(1L);
 
-    // todo mainUserList问题
     // mainUserList其实可以设置成前一天活跃的用户，这样每天只需要执行活跃用户推荐缓存
 
     // 每天执行，预热推荐用户

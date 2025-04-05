@@ -2,6 +2,9 @@ package com.dy.umb.mapper;
 
 import com.dy.umb.model.domain.Team;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+
 
 /**
 * @author dysjs
@@ -10,7 +13,13 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 * @Entity generator.domain.Team
 */
 public interface TeamMapper extends BaseMapper<Team> {
-
+    /**
+     * 使用行级锁查询用户创建的队伍数量
+     * @param userId 用户 ID
+     * @return 用户创建的队伍数量
+     */
+    @Select("SELECT COUNT(*) FROM team WHERE userId = #{userId} FOR UPDATE")
+    long countUserTeamsForUpdate(@Param("userId") Long userId);
 }
 
 
