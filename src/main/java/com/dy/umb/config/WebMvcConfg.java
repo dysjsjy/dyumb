@@ -11,7 +11,7 @@ public class WebMvcConfg implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         //设置允许跨域的路径
         registry.addMapping("/**")
-                .allowedOriginPatterns("http://172.19.0.4:*", "http://localhost:80", "http://nginx-dyumb:5173", "http://localhost:81")
+                .allowedOriginPatterns("http://localhost:7529", "http://localhost:80", "http://nginx-dyumb:80")
 //                .allowedOrigins("*")
                 //是否允许证书 不再默认开启
                 .allowCredentials(true)

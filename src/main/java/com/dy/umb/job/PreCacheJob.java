@@ -16,6 +16,7 @@ import javax.annotation.Resource;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Component
 @Slf4j
@@ -39,7 +40,7 @@ public class PreCacheJob {
     // 每天执行，预热推荐用户
     @Scheduled(cron = "0 31 0 * * *")
     public void doCacheRecommendUser() {
-        List<User> userList = userService.list(new QueryWrapper<User>().eq("userStatus", 0)).stream().map(user -> userService.getSafetyUser(user)).toList();
+        List<User> userList = userService.list(new QueryWrapper<User>().eq("userStatus", 0)).stream().map(user -> userService.getSafetyUser(user)).collect(Collectors.toList());
         RLock lock = redissonClient.getLock("dy:precachejob:docache:lock");
         try {
             // 只有一个线程能获取到锁

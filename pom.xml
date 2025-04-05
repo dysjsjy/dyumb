@@ -116,13 +116,19 @@
                         </goals>
                     </execution>
                 </executions>
+                <configuration>
+                    <mainClass>com.dy.umb.MyApplication</mainClass>
+                    <profiles>
+                        <profile>prod</profile>
+                    </profiles>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <source>16</source>
-                    <target>16</target>
+                    <source>8</source>
+                    <target>8</target>
                 </configuration>
             </plugin>
         </plugins>

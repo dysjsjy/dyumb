@@ -127,6 +127,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         User safetyUser = getSafetyUser(user);
         // 4. 记录用户的登录态
         request.getSession().setAttribute(USER_LOGIN_STATE, safetyUser);
+
+//        request.getSession().setMaxInactiveInterval(30 * 60); // 30 分钟（单位：秒）
         return safetyUser;
     }
 
@@ -166,6 +168,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     public int userLogout(HttpServletRequest request) {
         // 移除登录态
         request.getSession().removeAttribute(USER_LOGIN_STATE);
+//        request.getSession().invalidate();
         return 1;
     }
 

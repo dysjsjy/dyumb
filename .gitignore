@@ -17,3 +17,9 @@ buildNumber.properties
 !.idea/gradle.xml
 !.idea/misc.xml
 !.idea/modules.xml
+
+# docker file
+.mysql-data
+.redis-data
+dist
+mysql-init

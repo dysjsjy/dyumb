@@ -1,53 +1,66 @@
 version: '3'
 services:
   # 自定义名称的 MySQL 服务
-  mysql_dyumb:
+  mysql:
     image: mysql:8.0
+    container_name: mysql-dyumb # 启动的实例名称
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root@3303
-      MYSQL_DATABASE: mysql_dyumb
+      MYSQL_ROOT_PASSWORD: fawefasdf@#$
     ports:
-      - "3303:3306"  # 修改宿主机映射端口
+      - "3306:3306"  # 修改宿主机映射端口
     volumes:
-      - mysql_dyumb:/var/lib/mysql
-
+      - ./.mysql-data:/var/lib/mysql # 将数据目录挂载到本地目录以进行持久化
+      - ./mysql-init:/docker-entrypoint-initdb.d # 启动脚本
+    networks:
+      - mynetwork # 指定网络
   # 自定义名称的 Redis 服务
-  redis_dyumb:
+  redis:
     image: redis:6.2
+    container_name: redis-dyumb
     restart: always
     ports:
-      - "6377:6379"  # 修改宿主机映射端口
+      - "6379:6379"  # 修改宿主机映射端口
     volumes:
-      - redis_dyumb:/data
-
-  # 自定义名称的 Spring Boot 应用服务
-  spring_app_dyumb:
-    build: .
+      - ./.redis-data:/data # 持久化
+    networks:
+      - mynetwork # 指定网络
+#  # 自定义名称的 Nginx 服务
+#  nginx:
+#    image: nginx:1.21
+#    container_name: nginx-dyumb
+#    restart: always
+#    ports:
+#      - "80:80"  # 修改宿主机映射端口
+#    volumes:
+#      - ./nginx.conf:/etc/nginx/nginx.conf
+#      - ./dist:/usr/share/nginx/html
+#    networks:
+#      - mynetwork # 指定网络
+#    depends_on:
+#      - spring-boot-app
+  # 自定义名称的 Spring Boot 服务
+  spring-boot-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spring-boot-dyumb
     restart: always
-    depends_on:
-      - mysql_dyumb
-      - redis_dyumb
     ports:
       - "8071:8071"  # 修改宿主机映射端口
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql_dyumb:3306/dyumb
+      # 配置数据库连接信息
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-dyumb:3306/dyumb?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: root@3303
-      SPRING_REDIS_HOST: redis_dyumb
-      SPRING_REDIS_PORT: 6379  # 容器内端口保持不变
-
-  # 自定义名称的 Nginx 服务
-  nginx_dyumb:
-    image: nginx:1.21
-    restart: always
-    ports:
-      - "82:80"  # 修改宿主机映射端口
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
+      SPRING_DATASOURCE_PASSWORD: fawefasdf@#$
+      # 配置 Redis 连接信息
+      SPRING_REDIS_HOST: redis-dyumb
+      SPRING_REDIS_PORT: 6379
+    networks:
+      - mynetwork # 指定网络
     depends_on:
-      - spring_app_dyumb
+      - mysql
+      - redis
 
-volumes:
-  mysql_dyumb:
-  redis_dyumb:
+networks:
+  mynetwork:
