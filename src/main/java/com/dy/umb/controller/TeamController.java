@@ -24,6 +24,8 @@ import com.dy.umb.service.TeamService;
 import com.dy.umb.service.UserService;
 import com.dy.umb.service.UserTeamService;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
@@ -32,6 +34,7 @@ import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @RestController
@@ -50,6 +53,9 @@ public class TeamController {
 
     @Resource
     private RedisTemplate<String, Object> redisTemplate;
+
+    @Resource
+    private RedissonClient redissonClient;
 
     @Resource
     private CacheDeleteHelper cacheDeleteHelper;
@@ -99,14 +105,48 @@ public class TeamController {
         Team team = (Team) redisTemplate.opsForValue().get(key);
 
         if (team == null) {
-            team = teamService.getById(id);
-            if (team != null) {
-                redisTemplate.opsForValue().set(key, team, Duration.ofMinutes(10));
-            }
-        }
+            String lockKey = "lock:team:" + id;
+            RLock lock = redissonClient.getLock(lockKey);
 
-        if (team == null) {
-            throw new BusinessException(ErrorCode.NULL_ERROR);
+            // 尝试获取分布式锁
+            try {
+                // 尝试获取锁，设置锁的过期时间（防止死锁）
+                boolean isLocked = lock.tryLock(10, 30, TimeUnit.SECONDS);
+
+                if (isLocked) {
+                    try {
+                        // 双重检查，防止其他线程已经重建了缓存
+                        team = (Team) redisTemplate.opsForValue().get(key);
+                        if (team != null) {
+                            redisTemplate.opsForValue().set(key, team, 30, TimeUnit.MINUTES);
+                            return ResultUtils.success(team);
+                        }
+
+                        // 3. 查询数据库
+                        team = teamService.getById(id);
+
+                        if (team != null) {
+                            // 4. 重新设置缓存，设置合理的过期时间
+                            redisTemplate.opsForValue().set(key, team, 30, TimeUnit.MINUTES);
+                        } else {
+                            // 5. 如果数据库也没有，缓存一个空值，防止缓存穿透
+                            redisTemplate.opsForValue().set(key, null, 5, TimeUnit.MINUTES);
+                        }
+
+                        return ResultUtils.success(team);
+                    } finally {
+                        // 6. 释放锁
+                        lock.unlock();
+                    }
+                } else {
+                    // 7. 如果获取锁失败，稍等后重试或返回默认值
+                    Thread.sleep(100); // 简单等待
+                    return getTeamById(id); // 递归重试
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Failed to acquire lock", e);
+            }
         }
 
         return ResultUtils.success(team);

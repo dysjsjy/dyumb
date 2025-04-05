@@ -1,18 +1,19 @@
 package com.dy.umb.aop;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.Resource;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.springframework.data.redis.core.RedisTemplate;
+
+import javax.annotation.Resource;
 
 @Component
 public class CacheDeleteHelper {
 
     @Resource
-    private StringRedisTemplate redisTemplate;
+    private RedisTemplate<String, Object> redisTemplate;
 
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
@@ -30,4 +31,3 @@ public class CacheDeleteHelper {
         doubleDelete(key, 300L);
     }
 }
-

@@ -9,7 +9,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/dyumb?serverTimezone=Asia/Shanghai
     username: root
-    password: root@3303
+    password: root
   # session 失效时间（分钟）
   session:
     timeout: 86400
@@ -26,9 +26,9 @@ server:
   port: 8071
   servlet:
     context-path: /api
-    session:
-      cookie:
-        domain: 113.44.90.42
+#    session:
+#      cookie:
+#        domain: 113.44.90.42
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: false
