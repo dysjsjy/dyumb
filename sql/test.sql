@@ -1,4 +1,4 @@
---正式版
+--测试sql
 create database if not exists dyumb;
 
 use dyumb;
@@ -11,7 +11,7 @@ create table user
     userAccount  varchar(256) null comment '账号',
     avatarUrl    varchar(1024) null comment '用户头像',
     gender       tinyint null comment '性别',
-    userPassword varchar(512)       not null comment '密码',
+    userPassword varchar(512) not null comment '密码',
     phone        varchar(128) null comment '电话',
     email        varchar(512) null comment '邮箱',
     userStatus   int      default 0 not null comment '状态 0 - 正常',
@@ -20,7 +20,9 @@ create table user
     isDelete     tinyint  default 0 not null comment '是否删除',
     userRole     int      default 0 not null comment '用户角色 0 - 普通用户 1 - 管理员',
     planetCode   varchar(512) null comment '编号',
-    tags         varchar(1024) null comment '标签 json 列表'
+    tags         varchar(1024) null comment '标签 json 列表'，
+    unique key idx_email (email),
+    index idx_name (`name`)
 ) comment '用户';
 
 create table team
@@ -35,25 +37,26 @@ create table team
     password    varchar(512) null comment '密码',
     createTime  datetime default CURRENT_TIMESTAMP null comment '创建时间',
     updateTime  datetime default CURRENT_TIMESTAMP null on update CURRENT_TIMESTAMP,
-    isDelete    tinyint  default 0 not null comment '是否删除'
+    isDelete    tinyint  default 0 not null comment '是否删除',
+    index idx_userid (userId),
+    index idx_description (description(20))
 ) comment '队伍';
 
 create table user_team
 (
-    id         bigint auto_increment comment 'id'
-        primary key,
+    id         bigint auto_increment comment 'id' primary key,
     userId     bigint comment '用户id',
     teamId     bigint comment '队伍id',
     joinTime   datetime null comment '加入时间',
     createTime datetime default CURRENT_TIMESTAMP null comment '创建时间',
     updateTime datetime default CURRENT_TIMESTAMP null on update CURRENT_TIMESTAMP,
-    isDelete   tinyint  default 0 not null comment '是否删除'
+    isDelete   tinyint  default 0 not null comment '是否删除',
+    index idx_userid_teamId (userId, teamId),
 ) comment '用户队伍关系';
 
 create table tag
 (
-    id         bigint auto_increment comment 'id'
-        primary key,
+    id         bigint auto_increment comment 'id' primary key,
     tagName    varchar(256) null comment '标签名称',
     userId     bigint null comment '用户 id',
     parentId   bigint null comment '父标签 id',
@@ -61,9 +64,5 @@ create table tag
     createTime datetime default CURRENT_TIMESTAMP null comment '创建时间',
     updateTime datetime default CURRENT_TIMESTAMP null on update CURRENT_TIMESTAMP,
     isDelete   tinyint  default 0 not null comment '是否删除',
-    constraint uniIdx_tagName
-        unique (tagName)
+    unique idx_tagName (tagName),
 ) comment '标签';
-
-create index idx_userId
-    on tag (userId);
