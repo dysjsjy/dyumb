@@ -23,3 +23,6 @@ buildNumber.properties
 .redis-data
 dist
 mysql-init
+
+# mac .DS_Store
+.DS_Store
